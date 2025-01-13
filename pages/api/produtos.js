@@ -1,130 +1,144 @@
 import { supabase } from "../../lib/supabaseClient";
 
-// Criar produto
-export async function createProduto(produto, imagem) {
-  try {
-    // Upload da imagem
-    const { data: imageData, error: imageError } = await supabase.storage
-      .from("produtos-imagens")
-      .upload(`${Date.now()}-${imagem.name}`, imagem);
+export default async function handler(req, res) {
+  if (req.method === "GET") {
+    try {
+      const { data, error } = await supabase
+        .from("produtos")
+        .select(
+          `
+          *,
+          subcategoria:subcategorias (
+            id,
+            nome,
+            categoria:categorias (
+              id,
+              nome
+            )
+          )
+        `
+        )
+        .order("created_at", { ascending: false });
 
-    if (imageError) throw imageError;
+      if (error) throw error;
+      return res.status(200).json(data);
+    } catch (error) {
+      console.error("Erro ao buscar produtos:", error);
+      return res.status(500).json({ error: "Erro ao buscar produtos" });
+    }
+  }
 
-    // Criar produto no banco
-    const { data, error } = await supabase
-      .from("produtos")
-      .insert([
+  if (req.method === "POST") {
+    try {
+      const {
+        nome,
+        peso,
+        descricao,
+        preco,
+        precoPromocional,
+        imagem_url,
+        subcategoria_id,
+      } = req.body;
+
+      if (!nome || !peso || !preco || !descricao || !subcategoria_id) {
+        return res.status(400).json({
+          error: "Nome, peso, preço, descrição e subcategoria são obrigatórios",
+        });
+      }
+
+      const { data, error } = await supabase.from("produtos").insert([
         {
-          nome: produto.nome,
-          peso: produto.peso,
-          preco: produto.preco,
-          preco_promocional: produto.precoPromocional,
-          descricao: produto.descricao,
-          imagem_url: imageData.path,
+          nome,
+          peso,
+          descricao,
+          preco,
+          preco_promocional: precoPromocional,
+          imagem_url,
+          subcategoria_id,
         },
-      ])
-      .select();
+      ]).select(`
+          *,
+          subcategoria:subcategorias (
+            id,
+            nome,
+            categoria:categorias (
+              id,
+              nome
+            )
+          )
+        `);
 
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error("Erro ao criar produto:", error);
-    throw error;
-  }
-}
-
-// Listar produtos
-export async function getProdutos() {
-  try {
-    const { data, error } = await supabase
-      .from("produtos")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error("Erro ao listar produtos:", error);
-    throw error;
-  }
-}
-
-// Buscar produto por ID
-export async function getProdutoById(id) {
-  try {
-    const { data, error } = await supabase
-      .from("produtos")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error("Erro ao buscar produto:", error);
-    throw error;
-  }
-}
-
-// Atualizar produto
-export async function updateProduto(id, produto, novaImagem = null) {
-  try {
-    let imagemPath = produto.imagem_url;
-
-    // Se houver uma nova imagem, fazer upload
-    if (novaImagem) {
-      const { data: imageData, error: imageError } = await supabase.storage
-        .from("produtos-imagens")
-        .upload(`${Date.now()}-${novaImagem.name}`, novaImagem);
-
-      if (imageError) throw imageError;
-      imagemPath = imageData.path;
+      if (error) throw error;
+      return res.status(201).json(data[0]);
+    } catch (error) {
+      console.error("Erro ao criar produto:", error);
+      return res.status(500).json({ error: "Erro ao criar produto" });
     }
-
-    // Atualizar produto
-    const { data, error } = await supabase
-      .from("produtos")
-      .update({
-        nome: produto.nome,
-        peso: produto.peso,
-        preco: produto.preco,
-        preco_promocional: produto.precoPromocional,
-        descricao: produto.descricao,
-        imagem_url: imagemPath,
-      })
-      .eq("id", id)
-      .select();
-
-    if (error) throw error;
-    return data;
-  } catch (error) {
-    console.error("Erro ao atualizar produto:", error);
-    throw error;
   }
-}
 
-// Deletar produto
-export async function deleteProduto(id) {
-  try {
-    // Primeiro, buscar o produto para obter a URL da imagem
-    const produto = await getProdutoById(id);
+  if (req.method === "PUT") {
+    try {
+      const {
+        id,
+        nome,
+        peso,
+        descricao,
+        preco,
+        precoPromocional,
+        imagem_url,
+        subcategoria_id,
+      } = req.body;
 
-    // Deletar a imagem do storage
-    if (produto.imagem_url) {
-      const { error: storageError } = await supabase.storage
-        .from("produtos-imagens")
-        .remove([produto.imagem_url]);
+      if (!id || !nome || !peso || !preco || !descricao || !subcategoria_id) {
+        return res.status(400).json({
+          error:
+            "ID, nome, peso, preço, descrição e subcategoria são obrigatórios",
+        });
+      }
 
-      if (storageError) throw storageError;
+      const { data, error } = await supabase
+        .from("produtos")
+        .update({
+          nome,
+          peso,
+          descricao,
+          preco,
+          preco_promocional: precoPromocional,
+          imagem_url,
+          subcategoria_id,
+        })
+        .eq("id", id).select(`
+          *,
+          subcategoria:subcategorias (
+            id,
+            nome,
+            categoria:categorias (
+              id,
+              nome
+            )
+          )
+        `);
+
+      if (error) throw error;
+      return res.status(200).json(data[0]);
+    } catch (error) {
+      console.error("Erro ao atualizar produto:", error);
+      return res.status(500).json({ error: "Erro ao atualizar produto" });
     }
-
-    // Deletar o produto
-    const { error } = await supabase.from("produtos").delete().eq("id", id);
-
-    if (error) throw error;
-    return true;
-  } catch (error) {
-    console.error("Erro ao deletar produto:", error);
-    throw error;
   }
+
+  if (req.method === "DELETE") {
+    try {
+      const { id } = req.query;
+      const { error } = await supabase.from("produtos").delete().eq("id", id);
+
+      if (error) throw error;
+      return res.status(200).json({ message: "Produto excluído com sucesso" });
+    } catch (error) {
+      console.error("Erro ao excluir produto:", error);
+      return res.status(500).json({ error: "Erro ao excluir produto" });
+    }
+  }
+
+  return res.status(405).json({ error: "Método não permitido" });
 }

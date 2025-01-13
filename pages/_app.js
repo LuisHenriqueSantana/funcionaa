@@ -1,5 +1,12 @@
-import "@/styles/globals.css";
+import { CarrinhoProvider } from "../contexts/CarrinhoContext";
+import "../styles/globals.css";
 
-export default function App({ Component, pageProps }) {
-  return <Component {...pageProps} />;
+function MyApp({ Component, pageProps }) {
+  return (
+    <CarrinhoProvider>
+      <Component {...pageProps} />
+    </CarrinhoProvider>
+  );
 }
+
+export default MyApp;
